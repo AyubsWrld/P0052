@@ -1,6 +1,6 @@
 #pragma once
 
-
+#include <cstdlib>
 #include <type_traits>
 #include <concepts>
 #include <utility>
@@ -49,14 +49,11 @@ namespace Atlas
 
         template<typename EFP>
         requires std::is_nothrow_constructible_v<EF, EFP> || std::is_nothrow_constructible_v<EF, EFP&> 
-        explicit scope_exit(EFP&& Callable) noexcept
-            :
-                exit_function(std::forward<EFP>(Callable))
-        {}
+        explicit scope_exit(EFP&& Callable) noexcept;
 
         explicit scope_exit(scope_exit&& rhs) noexcept;
 
-        ~scope_exit() noexcept; 
+        ~scope_exit() noexcept;
 
         void release() noexcept;
 
@@ -68,7 +65,36 @@ namespace Atlas
     };
 }
 
-
 namespace Atlas 
 {
+    template<typename EF>
+    template<typename EFP>
+    requires std::is_nothrow_constructible_v<EF, EFP> || 
+            std::is_nothrow_constructible_v<EF, EFP&>
+    scope_exit<EF>::scope_exit(EFP&& Callable) noexcept
+        : exit_function(std::forward<EFP>(Callable))
+    {
+    }
+
+    template<typename EF>
+    scope_exit<EF>::scope_exit(scope_exit&& rhs) noexcept
+        :
+            exit_function(rhs.exit_function)
+    {
+        rhs.execute_on_destruction = false;
+    }
+
+
+    template<typename EF>
+    scope_exit<EF>::~scope_exit() noexcept
+    {
+        if (execute_on_destruction)
+            exit_function();
+    }
+
+    template<typename EF>
+    void scope_exit<EF>::release() noexcept
+    {
+        execute_on_destruction = false;
+    }
 }
