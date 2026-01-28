@@ -4,97 +4,93 @@
 #include <type_traits>
 #include <concepts>
 #include <utility>
+
 namespace Atlas
 {
-
     /*
-        scope_exit is a general-purpose scope guard that calls its exit function when a scope is exited. The
-        class templates scope_fail and scope_success share the scope_exit interface, only the situation
+        ScopeExit is a general-purpose scope guard that calls its exit function when a scope is exited.
+        The class templates ScopeFail and ScopeSuccess share the ScopeExit interface, only the situation
         when the exit function is called differs.
     */
-    
-    template<typename EF>
-    class scope_exit;
 
     template<typename EF>
-    class scope_fail;
+    class ScopeExit;
 
     template<typename EF>
-    class scope_success;
+    class ScopeFail;
+
+    template<typename EF>
+    class ScopeSuccess;
 
     template<typename R, typename D>
-    class unique_resource;
+    class UniqueResource;
 
-    template<typename R, typename D, typename S=std::decay<R>>
-    unique_resource<std::decay_t<R>, std::decay_t<D>> 
-    make_unique_resource_checked(R&& r, const S& invalid, D&& d) noexcept;
+    template<typename R, typename D, typename S = std::decay<R>>
+    UniqueResource<std::decay_t<R>, std::decay_t<D>>
+    MakeUniqueResourceChecked(R&& r, const S& invalid, D&& d) noexcept;
 
+    /*
+        NOTE:
+        If the exit function object of a ScopeSuccess or ScopeExit object refers to a local variable
+        of the function where it is defined (e.g., as a lambda capturing the variable by reference),
+        and that variable is used as a return operand in that function, that variable might have
+        already been returned when the scope guard’s destructor executes. This can lead to surprising
+        behavior.
+    */
 
-    /* NOTE:    If the exit function object of a scope_success or scope_exit object refers to a local variable
-                of the function where it is defined, e.g., as a lambda capturing the variable by reference, and that
-                variable is used as a return operand in that function, that variable might have already been returned
-                when the scope_guard’s destructor executes, calling the exit function. This can lead to surprising
-                behavior.
-     */
-    
-    template<typename EF> 
-    class scope_exit 
+    template<typename EF>
+    class ScopeExit
     {
     private:
-        EF      exit_function;                       // exposition only 
-        bool    execute_on_destruction{true};      // exposition only
-        
-        // int     uncaught_on_creation{uncaught_exceptions()};
+        EF   ExitFunction;
+        bool ExecuteOnDestruction{ true };
+
     public:
-
         template<typename EFP>
-        requires std::is_nothrow_constructible_v<EF, EFP> || std::is_nothrow_constructible_v<EF, EFP&> 
-        explicit scope_exit(EFP&& Callable) noexcept;
+        requires std::is_nothrow_constructible_v<EF, EFP> ||
+                 std::is_nothrow_constructible_v<EF, EFP&>
+        explicit ScopeExit(EFP&& callable) noexcept;
 
-        explicit scope_exit(scope_exit&& rhs) noexcept;
+        explicit ScopeExit(ScopeExit&& rhs) noexcept;
 
-        ~scope_exit() noexcept;
+        ~ScopeExit() noexcept;
 
-        void release() noexcept;
+        void Release() noexcept;
 
-        scope_exit(const scope_exit& other)                 =   delete;
-        scope_exit& operator=(const scope_exit& other)      =   delete;
-        scope_exit& operator=(scope_exit&& other)           =   delete;
-
-       
+        ScopeExit(const ScopeExit&)            = delete;
+        ScopeExit& operator=(const ScopeExit&) = delete;
+        ScopeExit& operator=(ScopeExit&&)      = delete;
     };
 }
 
-namespace Atlas 
+namespace Atlas
 {
     template<typename EF>
     template<typename EFP>
-    requires std::is_nothrow_constructible_v<EF, EFP> || 
-            std::is_nothrow_constructible_v<EF, EFP&>
-    scope_exit<EF>::scope_exit(EFP&& Callable) noexcept
-        : exit_function(std::forward<EFP>(Callable))
+    requires std::is_nothrow_constructible_v<EF, EFP> ||
+             std::is_nothrow_constructible_v<EF, EFP&>
+    ScopeExit<EF>::ScopeExit(EFP&& callable) noexcept
+        : ExitFunction(std::forward<EFP>(callable))
     {
     }
 
     template<typename EF>
-    scope_exit<EF>::scope_exit(scope_exit&& rhs) noexcept
-        :
-            exit_function(rhs.exit_function)
+    ScopeExit<EF>::ScopeExit(ScopeExit&& rhs) noexcept
+        : ExitFunction(std::move(rhs.ExitFunction))
     {
-        rhs.execute_on_destruction = false;
-    }
-
-
-    template<typename EF>
-    scope_exit<EF>::~scope_exit() noexcept
-    {
-        if (execute_on_destruction)
-            exit_function();
+        rhs.ExecuteOnDestruction = false;
     }
 
     template<typename EF>
-    void scope_exit<EF>::release() noexcept
+    ScopeExit<EF>::~ScopeExit() noexcept
     {
-        execute_on_destruction = false;
+        if (ExecuteOnDestruction)
+            ExitFunction();
+    }
+
+    template<typename EF>
+    void ScopeExit<EF>::Release() noexcept
+    {
+        ExecuteOnDestruction = false;
     }
 }
